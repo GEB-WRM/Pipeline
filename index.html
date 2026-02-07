@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Pipeline - George E. Booth Co., LLC</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Work+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #C53030; --primary-dark: #9B2C2C; --secondary: #2D3748;
+            --success: #38A169; --bg: #F7FAFC; --surface: #FFFFFF;
+            --text: #1A202C; --text-light: #4A5568; --border: #E2E8F0;
+            --shadow: rgba(197, 48, 48, 0.12);
+        }
+        body { font-family: 'Work Sans', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white; padding: 2rem; box-shadow: 0 4px 24px var(--shadow);
+        }
+        .header-content { max-width: 1400px; margin: 0 auto; display: flex; justify-content: space-between; align-items: start; gap: 2rem; }
+        .header-left { flex: 1; }
+        .header-right { text-align: right; }
+        .header h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .header .subtitle { font-size: 1rem; opacity: 0.95; margin-bottom: 0.5rem; }
+        .contact-info { font-size: 0.9rem; }
+        .contact-info div { margin-bottom: 0.25rem; }
+        .contact-info a { color: white; text-decoration: none; }
+        .contact-info a:hover { text-decoration: underline; }
+        
+        .tabs { 
+            max-width: 1400px; margin: 0 auto; display: flex; gap: 0.5rem; 
+            background: white; padding: 1rem 2rem 0; box-shadow: 0 2px 4px var(--shadow);
+        }
+        .tab { 
+            padding: 0.75rem 1.5rem; border: none; background: transparent; 
+            cursor: pointer; font-family: 'IBM Plex Mono', monospace; 
+            font-size: 0.9rem; font-weight: 600; text-transform: uppercase;
+            border-bottom: 3px solid transparent; transition: all 0.3s;
+        }
+        .tab:hover { background: var(--bg); }
+        .tab.active { border-bottom-color: var(--primary); color: var(--primary); }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        
+        #map { height: 500px; border-radius: 12px; box-shadow: 0 2px 8px var(--shadow); margin-bottom: 2rem; }
+        
+        .controls { 
+            background: var(--surface); padding: 2rem; border-radius: 12px; 
+            box-shadow: 0 2px 8px var(--shadow); border-top: 4px solid var(--primary); 
+            margin-bottom: 2rem; 
+        }
+        
+        .import-section {
+            margin-bottom: 2rem;
+        }
+        
+        .import-section h3 {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            color: var(--text);
+        }
+        
+        .file-input-wrapper {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .btn {
+            padding: 0.875rem 1.75rem; border: none; border-radius: 8px;
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; font-weight: 600;
+            text-transform: uppercase; cursor: pointer; box-shadow: 0 2px 8px var(--shadow);
+            transition: all 0.3s ease;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); }
+        .btn-secondary { background: var(--secondary); color: white; }
+        
+        input[type="file"] {
+            padding: 0.75rem; border: 2px solid var(--border); border-radius: 8px;
+            font-family: 'Work Sans', sans-serif; font-size: 1rem; background: var(--bg);
+        }
+        
+        .account-table-wrapper {
+            background: var(--surface); border-radius: 12px; box-shadow: 0 2px 8px var(--shadow);
+            overflow-x: auto; border-top: 4px solid var(--primary);
+        }
+        
+        table { 
+            width: 100%; border-collapse: collapse; 
+        }
+        
+        thead { background: var(--secondary); color: white; }
+        thead th {
+            padding: 1rem; text-align: left; font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem; text-transform: uppercase; font-weight: 600;
+            position: sticky; top: 0; z-index: 10;
+        }
+        
+        tbody tr { border-bottom: 1px solid var(--border); transition: background 0.2s; }
+        tbody tr:hover { background: var(--bg); }
+        tbody td {
+            padding: 1rem; font-size: 0.95rem;
+        }
+        
+        tbody tr.highlighted { background-color: #FEF3C7; }
+        tbody tr.reviewed { background-color: transparent; }
+        
+        .editable-cell {
+            min-width: 100px;
+            padding: 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: #FEE;
+        }
+        
+        .editable-cell.filled {
+            background: transparent;
+        }
+        
+        .editable-cell:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(197, 48, 48, 0.1);
+        }
+        
+        .placeholder-text {
+            color: #999;
+            font-style: italic;
+        }
+        
+        .totals-row {
+            background: var(--secondary) !important;
+            color: white;
+            font-weight: 700;
+        }
+        
+        .totals-row td {
+            padding: 1rem;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+        
+        .review-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        
+        .leaflet-popup-content {
+            font-family: 'Work Sans', sans-serif;
+        }
+        
+        .popup-content h4 {
+            margin-bottom: 0.5rem;
+            color: var(--primary);
+        }
+        
+        .popup-content p {
+            margin: 0.25rem 0;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="header-left">
+                <h1>Sales Pipeline</h1>
+                <div class="subtitle">George E. Booth Co., LLC</div>
+            </div>
+            <div class="header-right">
+                <div class="contact-info">
+                    <div>Will McGowen</div>
+                    <div><a href="mailto:wmcgowen@gebooth.com">wmcgowen@gebooth.com</a></div>
+                    <div><a href="tel:6306551155">630-655-1155</a></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab active" onclick="switchTab('account-map')">Account Map</button>
+        <button class="tab" onclick="switchTab('strategy-2026')">2026 Strategy</button>
+    </div>
+
+    <div id="account-map" class="tab-content active">
+        <div class="container">
+            <div id="map"></div>
+            
+            <div class="controls">
+                <div class="import-section">
+                    <h3>Import Account Data</h3>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="accountFileInput" accept=".xlsx,.xls,.csv" />
+                        <button class="btn btn-primary" onclick="importAccountData()">Import Accounts</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="account-table-wrapper">
+                <table id="accountTable">
+                    <thead>
+                        <tr>
+                            <th>Account Name</th>
+                            <th>City</th>
+                            <th>State</th>
+                            <th>Customer ID</th>
+                        </tr>
+                    </thead>
+                    <tbody id="accountTableBody">
+                        <!-- Account data will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="strategy-2026" class="tab-content">
+        <div class="container">
+            <div class="account-table-wrapper">
+                <table id="strategyTable">
+                    <thead>
+                        <tr>
+                            <th>Reviewed</th>
+                            <th>Account Name</th>
+                            <th>2024 Actual Net Sales</th>
+                            <th>2025 Actual Net Sales</th>
+                            <th>2026 Target</th>
+                            <th>E+H Component</th>
+                            <th>Filtration</th>
+                            <th>Misc</th>
+                            <th>Fittings</th>
+                            <th>Samson</th>
+                            <th>Valves</th>
+                            <th>Projects</th>
+                        </tr>
+                    </thead>
+                    <tbody id="strategyTableBody">
+                        <!-- Strategy data will be populated here -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="totals-row">
+                            <td></td>
+                            <td>TOTALS</td>
+                            <td id="total2024">$0</td>
+                            <td id="total2025">$0</td>
+                            <td id="total2026Target">$0</td>
+                            <td id="totalEH">$0</td>
+                            <td id="totalFiltration">$0</td>
+                            <td id="totalMisc">$0</td>
+                            <td id="totalFittings">$0</td>
+                            <td id="totalSamson">$0</td>
+                            <td id="totalValves">$0</td>
+                            <td id="totalProjects">$0</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            
+            <div class="controls" style="margin-top: 2rem;">
+                <div class="import-section">
+                    <h3>Import 2025 Data</h3>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="strategyFileInput" accept=".xlsx,.xls,.csv" />
+                        <button class="btn btn-primary" onclick="importStrategyData()">Import Strategy Data</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global data storage
+        let accountsData = [];
+        let strategyData = [];
+        let map;
+        let markers = [];
+
+        // Initialize map
+        function initMap() {
+            map = L.map('map').setView([41.8781, -87.6298], 6); // Centered on Illinois
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+        }
+
+        // Tab switching
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+            
+            // Refresh map if switching to account map
+            if (tabName === 'account-map' && map) {
+                setTimeout(() => map.invalidateSize(), 100);
+            }
+        }
+
+        // Import account data
+        function importAccountData() {
+            const fileInput = document.getElementById('accountFileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file first');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                
+                processAccountData(jsonData);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Process and display account data
+        function processAccountData(data) {
+            accountsData = data;
+            
+            // Clear existing markers
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+            
+            // Clear table
+            const tbody = document.getElementById('accountTableBody');
+            tbody.innerHTML = '';
+            
+            // Sort accounts alphabetically
+            const sortedData = [...data].sort((a, b) => {
+                const nameA = (a['Account Name'] || a['AccountName'] || '').toString().toUpperCase();
+                const nameB = (b['Account Name'] || b['AccountName'] || '').toString().toUpperCase();
+                return nameA.localeCompare(nameB);
+            });
+            
+            // Process each account
+            sortedData.forEach(account => {
+                const accountName = account['Account Name'] || account['AccountName'] || '';
+                const city = account['City'] || '';
+                const state = account['State'] || '';
+                const customerId = account['Customer ID'] || account['CustomerID'] || '';
+                const lat = parseFloat(account['Latitude'] || account['Lat'] || 0);
+                const lng = parseFloat(account['Longitude'] || account['Lng'] || account['Long'] || 0);
+                
+                // Add to table
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${accountName}</td>
+                    <td>${city}</td>
+                    <td>${state}</td>
+                    <td>${customerId}</td>
+                `;
+                
+                // Add marker to map if coordinates exist
+                if (lat && lng && lat !== 0 && lng !== 0) {
+                    const marker = L.marker([lat, lng]).addTo(map);
+                    marker.bindPopup(`
+                        <div class="popup-content">
+                            <h4>${accountName}</h4>
+                            <p><strong>City:</strong> ${city}</p>
+                            <p><strong>State:</strong> ${state}</p>
+                            <p><strong>Customer ID:</strong> ${customerId}</p>
+                        </div>
+                    `);
+                    markers.push(marker);
+                }
+            });
+            
+            // Fit map to markers if any exist
+            if (markers.length > 0) {
+                const group = new L.featureGroup(markers);
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+            
+            // Check for account mismatches
+            checkAccountMatches();
+        }
+
+        // Import strategy data
+        function importStrategyData() {
+            const fileInput = document.getElementById('strategyFileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file first');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+                
+                processStrategyData(jsonData);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Process strategy data from Excel
+        function processStrategyData(data) {
+            // Find the header row (look for "Account Name")
+            let headerRowIndex = -1;
+            let headers = [];
+            
+            for (let i = 0; i < data.length; i++) {
+                const row = data[i];
+                if (row.some(cell => cell && cell.toString().includes('Account Name'))) {
+                    headerRowIndex = i;
+                    headers = row;
+                    break;
+                }
+            }
+            
+            if (headerRowIndex === -1) {
+                alert('Could not find header row with "Account Name"');
+                return;
+            }
+            
+            // Find column indices
+            const accountNameIdx = headers.findIndex(h => h && h.toString().includes('Account Name'));
+            const actual2024Idx = headers.findIndex(h => h && h.toString().includes('2023 Actual') || h && h.toString().includes('2024 Actual'));
+            const actual2025Idx = headers.findIndex(h => h && h.toString().includes('2024 Actual NS') || h && h.toString().includes('2025'));
+            
+            // Column names for product categories
+            const columnMap = {
+                'E+H': headers.findIndex(h => h && (h.toString().includes('Endress') || h.toString().includes('E+H'))),
+                'Filtration': headers.findIndex(h => h && h.toString().includes('Filtration')),
+                'Misc': headers.findIndex(h => h && h.toString().includes('Misc')),
+                'Fittings': headers.findIndex(h => h && h.toString().includes('Fittings')),
+                'Samson': headers.findIndex(h => h && h.toString().includes('Samson')),
+                'Valves': headers.findIndex(h => h && h.toString().includes('Valves')),
+                'Projects': headers.findIndex(h => h && h.toString().includes('Projects'))
+            };
+            
+            const tbody = document.getElementById('strategyTableBody');
+            tbody.innerHTML = '';
+            strategyData = [];
+            
+            // Process data rows
+            for (let i = headerRowIndex + 1; i < data.length; i++) {
+                const row = data[i];
+                if (!row || row.length === 0) continue;
+                
+                const accountName = row[accountNameIdx];
+                if (!accountName || accountName.toString().trim() === '') continue;
+                
+                const rowData = {
+                    accountName: accountName,
+                    actual2024: parseFloat(row[actual2024Idx]) || 0,
+                    actual2025: parseFloat(row[actual2025Idx]) || 0,
+                    target2026: 0,
+                    eh: parseFloat(row[columnMap['E+H']]) || 0,
+                    filtration: parseFloat(row[columnMap['Filtration']]) || 0,
+                    misc: parseFloat(row[columnMap['Misc']]) || 0,
+                    fittings: parseFloat(row[columnMap['Fittings']]) || 0,
+                    samson: parseFloat(row[columnMap['Samson']]) || 0,
+                    valves: parseFloat(row[columnMap['Valves']]) || 0,
+                    projects: parseFloat(row[columnMap['Projects']]) || 0,
+                    reviewed: false
+                };
+                
+                strategyData.push(rowData);
+                addStrategyRow(rowData, strategyData.length - 1);
+            }
+            
+            updateTotals();
+            checkAccountMatches();
+        }
+
+        // Add a new row to strategy table
+        function addStrategyRow(data = null, index = null) {
+            const tbody = document.getElementById('strategyTableBody');
+            const row = tbody.insertRow();
+            const rowIndex = index !== null ? index : strategyData.length;
+            
+            if (data === null) {
+                data = {
+                    accountName: '',
+                    actual2024: 0,
+                    actual2025: 0,
+                    target2026: 0,
+                    eh: 0,
+                    filtration: 0,
+                    misc: 0,
+                    fittings: 0,
+                    samson: 0,
+                    valves: 0,
+                    projects: 0,
+                    reviewed: false
+                };
+                strategyData.push(data);
+            }
+            
+            row.innerHTML = `
+                <td><input type="checkbox" class="review-checkbox" onchange="toggleReviewed(${rowIndex})" ${data.reviewed ? 'checked' : ''}></td>
+                <td><input type="text" class="editable-cell" value="${data.accountName}" onchange="updateStrategyData(${rowIndex}, 'accountName', this.value)" onblur="checkAccountMatches()"></td>
+                <td>$${data.actual2024.toLocaleString()}</td>
+                <td><span class="placeholder-text" id="placeholder2025-${rowIndex}">${data.actual2025 > 0 ? '$' + data.actual2025.toLocaleString() : ''}</span><input type="number" class="editable-cell" id="actual2025-${rowIndex}" value="${data.actual2025 || ''}" onchange="updateStrategyData(${rowIndex}, 'actual2025', parseFloat(this.value) || 0)" onfocus="clearPlaceholder(${rowIndex}, '2025')" style="display: none;"></td>
+                <td><input type="number" class="editable-cell" id="target2026-${rowIndex}" placeholder="${data.actual2025 > 0 ? '$' + data.actual2025.toLocaleString() : ''}" value="${data.target2026 || ''}" onchange="updateStrategyData(${rowIndex}, 'target2026', parseFloat(this.value) || 0)" onfocus="clearPlaceholder(${rowIndex}, 'target')"></td>
+                <td><input type="number" class="editable-cell" value="${data.eh || ''}" onchange="updateStrategyData(${rowIndex}, 'eh', parseFloat(this.value) || 0)"></td>
+                <td><input type="number" class="editable-cell" value="${data.filtration || ''}" onchange="updateStrategyData(${rowIndex}, 'filtration', parseFloat(this.value) || 0)"></td>
+                <td><input type="number" class="editable-cell" value="${data.misc || ''}" onchange="updateStrategyData(${rowIndex}, 'misc', parseFloat(this.value) || 0)"></td>
+                <td><input type="number" class="editable-cell" value="${data.fittings || ''}" onchange="updateStrategyData(${rowIndex}, 'fittings', parseFloat(this.value) || 0)"></td>
+                <td><input type="number" class="editable-cell" value="${data.samson || ''}" onchange="updateStrategyData(${rowIndex}, 'samson', parseFloat(this.value) || 0)"></td>
+                <td><input type="number" class="editable-cell" value="${data.valves || ''}" onchange="updateStrategyData(${rowIndex}, 'valves', parseFloat(this.value) || 0)"></td>
+                <td><input type="number" class="editable-cell" value="${data.projects || ''}" onchange="updateStrategyData(${rowIndex}, 'projects', parseFloat(this.value) || 0)"></td>
+            `;
+            
+            checkAccountMatch(rowIndex);
+        }
+
+        // Clear placeholder when user starts typing
+        function clearPlaceholder(rowIndex, field) {
+            if (field === '2025') {
+                const placeholder = document.getElementById(`placeholder2025-${rowIndex}`);
+                const input = document.getElementById(`actual2025-${rowIndex}`);
+                placeholder.style.display = 'none';
+                input.style.display = 'block';
+                input.focus();
+            } else if (field === 'target') {
+                const input = document.getElementById(`target2026-${rowIndex}`);
+                input.placeholder = '';
+            }
+        }
+
+        // Update strategy data
+        function updateStrategyData(index, field, value) {
+            strategyData[index][field] = value;
+            
+            // Update cell background color
+            const row = document.getElementById('strategyTableBody').rows[index];
+            const cells = row.querySelectorAll('.editable-cell');
+            
+            cells.forEach(cell => {
+                if (cell.value && cell.value !== '') {
+                    cell.classList.add('filled');
+                } else {
+                    cell.classList.remove('filled');
+                }
+            });
+            
+            updateTotals();
+            checkAccountMatch(index);
+        }
+
+        // Toggle reviewed status
+        function toggleReviewed(index) {
+            strategyData[index].reviewed = !strategyData[index].reviewed;
+            checkAccountMatch(index);
+        }
+
+        // Check if account exists in account map
+        function checkAccountMatch(index) {
+            const row = document.getElementById('strategyTableBody').rows[index];
+            const accountName = strategyData[index].accountName.trim().toLowerCase();
+            
+            if (accountName === '') {
+                row.classList.remove('highlighted', 'reviewed');
+                return;
+            }
+            
+            const accountExists = accountsData.some(account => {
+                const name = (account['Account Name'] || account['AccountName'] || '').toString().trim().toLowerCase();
+                return name === accountName;
+            });
+            
+            if (!accountExists && !strategyData[index].reviewed) {
+                row.classList.add('highlighted');
+                row.classList.remove('reviewed');
+            } else {
+                row.classList.remove('highlighted');
+                if (strategyData[index].reviewed || accountExists) {
+                    row.classList.add('reviewed');
+                }
+            }
+        }
+
+        // Check all accounts
+        function checkAccountMatches() {
+            strategyData.forEach((data, index) => {
+                checkAccountMatch(index);
+            });
+        }
+
+        // Update totals
+        function updateTotals() {
+            const totals = {
+                actual2024: 0,
+                actual2025: 0,
+                target2026: 0,
+                eh: 0,
+                filtration: 0,
+                misc: 0,
+                fittings: 0,
+                samson: 0,
+                valves: 0,
+                projects: 0
+            };
+            
+            strategyData.forEach(row => {
+                totals.actual2024 += parseFloat(row.actual2024) || 0;
+                totals.actual2025 += parseFloat(row.actual2025) || 0;
+                totals.target2026 += parseFloat(row.target2026) || 0;
+                totals.eh += parseFloat(row.eh) || 0;
+                totals.filtration += parseFloat(row.filtration) || 0;
+                totals.misc += parseFloat(row.misc) || 0;
+                totals.fittings += parseFloat(row.fittings) || 0;
+                totals.samson += parseFloat(row.samson) || 0;
+                totals.valves += parseFloat(row.valves) || 0;
+                totals.projects += parseFloat(row.projects) || 0;
+            });
+            
+            document.getElementById('total2024').textContent = '$' + totals.actual2024.toLocaleString();
+            document.getElementById('total2025').textContent = '$' + totals.actual2025.toLocaleString();
+            document.getElementById('total2026Target').textContent = '$' + totals.target2026.toLocaleString();
+            document.getElementById('totalEH').textContent = '$' + totals.eh.toLocaleString();
+            document.getElementById('totalFiltration').textContent = '$' + totals.filtration.toLocaleString();
+            document.getElementById('totalMisc').textContent = '$' + totals.misc.toLocaleString();
+            document.getElementById('totalFittings').textContent = '$' + totals.fittings.toLocaleString();
+            document.getElementById('totalSamson').textContent = '$' + totals.samson.toLocaleString();
+            document.getElementById('totalValves').textContent = '$' + totals.valves.toLocaleString();
+            document.getElementById('totalProjects').textContent = '$' + totals.projects.toLocaleString();
+        }
+
+        // Add new row button (you can add this if needed)
+        function addNewRow() {
+            addStrategyRow();
+            updateTotals();
+        }
+
+        // Initialize on page load
+        window.onload = function() {
+            initMap();
+        };
+    </script>
+</body>
+</html>
