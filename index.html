@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -47,7 +48,7 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         
-        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        .container { max-width: 100%; margin: 0; padding: 2rem; }
         
         #map { height: 500px; border-radius: 12px; box-shadow: 0 2px 8px var(--shadow); margin-bottom: 2rem; }
         
@@ -92,7 +93,11 @@
         
         .account-table-wrapper {
             background: var(--surface); border-radius: 12px; box-shadow: 0 2px 8px var(--shadow);
-            overflow-x: auto; border-top: 4px solid var(--primary);
+            border-top: 4px solid var(--primary);
+            max-height: 600px;
+            overflow: auto;
+            position: relative;
+            width: 100%;
         }
         
         table { 
@@ -104,23 +109,76 @@
             padding: 1rem; text-align: left; font-family: 'IBM Plex Mono', monospace;
             font-size: 0.8rem; text-transform: uppercase; font-weight: 600;
             position: sticky; top: 0; z-index: 10;
+            background: var(--secondary);
+        }
+        
+        /* Freeze first two columns (checkbox and account name) */
+        thead th:nth-child(1),
+        thead th:nth-child(2) {
+            position: sticky;
+            left: 0;
+            z-index: 20;
+            background: var(--secondary);
+        }
+        
+        thead th:nth-child(2) {
+            left: 60px; /* Width of checkbox column */
+        }
+        
+        tbody td:nth-child(1),
+        tbody td:nth-child(2) {
+            position: sticky;
+            background: inherit;
+            z-index: 5;
+        }
+        
+        tbody td:nth-child(1) {
+            left: 0;
+        }
+        
+        tbody td:nth-child(2) {
+            left: 60px; /* Width of checkbox column */
         }
         
         tbody tr { border-bottom: 1px solid var(--border); transition: background 0.2s; }
         tbody tr:hover { background: var(--bg); }
+        tbody tr:hover td:nth-child(1),
+        tbody tr:hover td:nth-child(2) {
+            background: var(--bg);
+        }
         tbody td {
             padding: 1rem; font-size: 0.95rem;
         }
         
-        tbody tr.highlighted { background-color: #FEF3C7; }
-        tbody tr.reviewed { background-color: transparent; }
+        tbody tr.highlighted { background-color: #FEF3C7 !important; }
+        tbody tr.highlighted td:nth-child(1),
+        tbody tr.highlighted td:nth-child(2) {
+            background-color: #FEF3C7 !important;
+        }
+        tbody tr.status-keep { background-color: #D1FAE5 !important; }
+        tbody tr.status-keep td:nth-child(1),
+        tbody tr.status-keep td:nth-child(2) {
+            background-color: #D1FAE5 !important;
+        }
+        tbody tr.status-notsure { background-color: #FEF3C7 !important; }
+        tbody tr.status-notsure td:nth-child(1),
+        tbody tr.status-notsure td:nth-child(2) {
+            background-color: #FEF3C7 !important;
+        }
+        tbody tr.status-remove { background-color: #FEE2E2 !important; }
+        tbody tr.status-remove td:nth-child(1),
+        tbody tr.status-remove td:nth-child(2) {
+            background-color: #FEE2E2 !important;
+        }
         
         .editable-cell {
             min-width: 100px;
             padding: 0.5rem;
             border: 1px solid var(--border);
             border-radius: 4px;
-            background: #FEE;
+            background: transparent;
+            text-align: right;
+            font-family: 'Work Sans', sans-serif;
         }
         
         .editable-cell.filled {
@@ -133,9 +191,52 @@
             box-shadow: 0 0 0 3px rgba(197, 48, 48, 0.1);
         }
         
-        .placeholder-text {
-            color: #999;
-            font-style: italic;
+        .number-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            justify-content: center;
+        }
+        
+        .number-input-wrapper input {
+            flex: 1;
+            min-width: 80px;
+        }
+        
+        /* Hide number input spinners */
+        .editable-cell[type="number"]::-webkit-inner-spin-button,
+        .editable-cell[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        
+        .editable-cell[type="number"] {
+            -moz-appearance: textfield;
+        }
+        
+        .arrow-btn {
+            background: var(--border);
+            border: none;
+            padding: 0.4rem 0.6rem;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+        
+        .arrow-btn:hover {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .status-select {
+            padding: 0.5rem;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            font-family: 'Work Sans', sans-serif;
+            font-size: 0.9rem;
+            background: white;
         }
         
         .totals-row {
@@ -199,9 +300,14 @@
             <div class="controls">
                 <div class="import-section">
                     <h3>Import Account Data</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 1rem;">
+                        <strong>Note:</strong> Accounts will be automatically plotted on the map using their City and State. 
+                        The geocoding may take a few moments to complete.
+                    </p>
                     <div class="file-input-wrapper">
                         <input type="file" id="accountFileInput" accept=".xlsx,.xls,.csv" />
                         <button class="btn btn-primary" onclick="importAccountData()">Import Accounts</button>
+                        <button class="btn btn-secondary" onclick="exportAccountMap()">Export to Excel</button>
                     </div>
                 </div>
             </div>
@@ -214,6 +320,7 @@
                             <th>City</th>
                             <th>State</th>
                             <th>Customer ID</th>
+                            <th>Status</th>
                         </tr>
                     </thead>
                     <tbody id="accountTableBody">
@@ -251,16 +358,16 @@
                         <tr class="totals-row">
                             <td></td>
                             <td>TOTALS</td>
-                            <td id="total2024">$0</td>
-                            <td id="total2025">$0</td>
-                            <td id="total2026Target">$0</td>
-                            <td id="totalEH">$0</td>
-                            <td id="totalFiltration">$0</td>
-                            <td id="totalMisc">$0</td>
-                            <td id="totalFittings">$0</td>
-                            <td id="totalSamson">$0</td>
-                            <td id="totalValves">$0</td>
-                            <td id="totalProjects">$0</td>
+                            <td id="total2024">$0.00</td>
+                            <td id="total2025">$0.00</td>
+                            <td id="total2026Target">$0.00</td>
+                            <td id="totalEH">$0.00</td>
+                            <td id="totalFiltration">$0.00</td>
+                            <td id="totalMisc">$0.00</td>
+                            <td id="totalFittings">$0.00</td>
+                            <td id="totalSamson">$0.00</td>
+                            <td id="totalValves">$0.00</td>
+                            <td id="totalProjects">$0.00</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -272,6 +379,7 @@
                     <div class="file-input-wrapper">
                         <input type="file" id="strategyFileInput" accept=".xlsx,.xls,.csv" />
                         <button class="btn btn-primary" onclick="importStrategyData()">Import Strategy Data</button>
+                        <button class="btn btn-secondary" onclick="exportStrategyData()">Export to Excel</button>
                     </div>
                 </div>
             </div>
@@ -292,6 +400,83 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
+        }
+
+        // Geocode city and state to get coordinates
+        let geocodeQueue = [];
+        let geocodeIndex = 0;
+        let isGeocoding = false;
+        
+        async function geocodeAndAddMarker(accountName, city, state, customerId) {
+            try {
+                // Use Nominatim (OpenStreetMap) geocoding service
+                const query = encodeURIComponent(`${city}, ${state}, USA`);
+                const url = `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`;
+                
+                console.log(`Geocoding: ${accountName} - ${city}, ${state}`);
+                
+                const response = await fetch(url, {
+                    headers: {
+                        'User-Agent': 'SalesPipeline/1.0'
+                    }
+                });
+                
+                if (!response.ok) {
+                    console.error(`Geocoding failed for ${city}, ${state}: ${response.status}`);
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (data && data.length > 0) {
+                    const lat = parseFloat(data[0].lat);
+                    const lng = parseFloat(data[0].lon);
+                    
+                    console.log(`✓ Geocoded ${accountName}: ${lat}, ${lng}`);
+                    
+                    const marker = L.marker([lat, lng]).addTo(map);
+                    marker.bindPopup(`
+                        <div class="popup-content">
+                            <h4>${accountName}</h4>
+                            <p><strong>City:</strong> ${city}</p>
+                            <p><strong>State:</strong> ${state}</p>
+                            <p><strong>Customer ID:</strong> ${customerId}</p>
+                        </div>
+                    `);
+                    markers.push(marker);
+                } else {
+                    console.warn(`No geocoding results for ${city}, ${state}`);
+                }
+            } catch (error) {
+                console.error(`Failed to geocode ${city}, ${state}:`, error);
+            }
+        }
+        
+        // Process geocoding queue with rate limiting
+        async function processGeocodeQueue() {
+            if (isGeocoding || geocodeQueue.length === 0) return;
+            
+            isGeocoding = true;
+            
+            while (geocodeQueue.length > 0) {
+                const item = geocodeQueue.shift();
+                await geocodeAndAddMarker(item.accountName, item.city, item.state, item.customerId);
+                
+                // Wait 1 second between requests to respect rate limits (Nominatim requires 1 req/sec)
+                if (geocodeQueue.length > 0) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+            
+            isGeocoding = false;
+            
+            // Fit map to all markers
+            if (markers.length > 0) {
+                setTimeout(() => {
+                    const group = new L.featureGroup(markers);
+                    map.fitBounds(group.getBounds().pad(0.1));
+                }, 500);
+            }
         }
 
         // Tab switching
@@ -347,6 +532,7 @@
             // Clear existing markers
             markers.forEach(marker => map.removeLayer(marker));
             markers = [];
+            geocodeQueue = [];
             
             // Clear table
             const tbody = document.getElementById('accountTableBody');
@@ -354,17 +540,19 @@
             
             // Sort accounts alphabetically
             const sortedData = [...data].sort((a, b) => {
-                const nameA = (a['Account Name'] || a['AccountName'] || '').toString().toUpperCase();
-                const nameB = (b['Account Name'] || b['AccountName'] || '').toString().toUpperCase();
+                const nameA = (a['Name'] || a['Account Name'] || a['AccountName'] || '').toString().toUpperCase();
+                const nameB = (b['Name'] || b['Account Name'] || b['AccountName'] || '').toString().toUpperCase();
                 return nameA.localeCompare(nameB);
             });
             
+            console.log(`Processing ${sortedData.length} accounts`);
+            
             // Process each account
             sortedData.forEach(account => {
-                const accountName = account['Account Name'] || account['AccountName'] || '';
-                const city = account['City'] || '';
-                const state = account['State'] || '';
-                const customerId = account['Customer ID'] || account['CustomerID'] || '';
+                const accountName = account['Name'] || account['Account Name'] || account['AccountName'] || '';
+                const city = account['Mail City'] || account['City'] || '';
+                const state = account['Mail State'] || account['State'] || '';
+                const customerId = account['Customer Id'] || account['Customer ID'] || account['CustomerID'] || '';
                 const lat = parseFloat(account['Latitude'] || account['Lat'] || 0);
                 const lng = parseFloat(account['Longitude'] || account['Lng'] || account['Long'] || 0);
                 
@@ -375,10 +563,19 @@
                     <td>${city}</td>
                     <td>${state}</td>
                     <td>${customerId}</td>
+                    <td>
+                        <select class="status-select" onchange="updateAccountStatus(${sortedData.indexOf(account)}, this.value)">
+                            <option value="">-</option>
+                            <option value="keep">Keep</option>
+                            <option value="notsure">Not Sure</option>
+                            <option value="remove">Remove</option>
+                        </select>
+                    </td>
                 `;
                 
-                // Add marker to map if coordinates exist
+                // Add to geocoding queue or use existing coordinates
                 if (lat && lng && lat !== 0 && lng !== 0) {
+                    // Use existing coordinates if available
                     const marker = L.marker([lat, lng]).addTo(map);
                     marker.bindPopup(`
                         <div class="popup-content">
@@ -389,11 +586,25 @@
                         </div>
                     `);
                     markers.push(marker);
+                } else if (city && state) {
+                    // Add to geocoding queue
+                    geocodeQueue.push({
+                        accountName: accountName,
+                        city: city,
+                        state: state,
+                        customerId: customerId
+                    });
                 }
             });
             
-            // Fit map to markers if any exist
-            if (markers.length > 0) {
+            console.log(`Added ${geocodeQueue.length} accounts to geocoding queue`);
+            
+            // Start geocoding
+            if (geocodeQueue.length > 0) {
+                alert(`Geocoding ${geocodeQueue.length} account locations. This will take about ${Math.ceil(geocodeQueue.length)} seconds...`);
+                processGeocodeQueue();
+            } else if (markers.length > 0) {
+                // Fit map to existing markers
                 const group = new L.featureGroup(markers);
                 map.fitBounds(group.getBounds().pad(0.1));
             }
@@ -415,10 +626,17 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
+                const workbook = XLSX.read(data, {type: 'array', cellDates: true, cellNF: false, cellText: false});
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonData = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
                 
+                // Convert to JSON with defval to handle merged cells properly
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet, {
+                    header: 1,
+                    defval: null,
+                    raw: false
+                });
+                
+                console.log('Raw Excel data loaded, first 5 rows:', jsonData.slice(0, 5));
                 processStrategyData(jsonData);
             };
             reader.readAsArrayBuffer(file);
@@ -426,75 +644,288 @@
 
         // Process strategy data from Excel
         function processStrategyData(data) {
-            // Find the header row (look for "Account Name")
-            let headerRowIndex = -1;
-            let headers = [];
+            console.log('Processing strategy data, total rows:', data.length);
             
-            for (let i = 0; i < data.length; i++) {
-                const row = data[i];
-                if (row.some(cell => cell && cell.toString().includes('Account Name'))) {
-                    headerRowIndex = i;
-                    headers = row;
-                    break;
-                }
-            }
-            
-            if (headerRowIndex === -1) {
-                alert('Could not find header row with "Account Name"');
+            if (data.length < 2) {
+                alert('File does not have enough rows');
                 return;
             }
             
-            // Find column indices
-            const accountNameIdx = headers.findIndex(h => h && h.toString().includes('Account Name'));
-            const actual2024Idx = headers.findIndex(h => h && h.toString().includes('2023 Actual') || h && h.toString().includes('2024 Actual'));
-            const actual2025Idx = headers.findIndex(h => h && h.toString().includes('2024 Actual NS') || h && h.toString().includes('2025'));
+            // Find which row has "Account Name" header
+            let headerRowIndex = -1;
+            let accountNameIdx = -1;
             
-            // Column names for product categories
+            // Check first 3 rows for "Account Name" header
+            for (let rowIdx = 0; rowIdx < Math.min(3, data.length); rowIdx++) {
+                const row = data[rowIdx];
+                for (let colIdx = 0; colIdx < row.length; colIdx++) {
+                    const cell = row[colIdx];
+                    if (cell && cell.toString().toLowerCase().trim() === 'account name') {
+                        headerRowIndex = rowIdx;
+                        accountNameIdx = colIdx;
+                        console.log(`Found "Account Name" at Row ${rowIdx + 1}, Column ${colIdx + 1}`);
+                        break;
+                    }
+                }
+                if (headerRowIndex !== -1) break;
+            }
+            
+            if (headerRowIndex === -1 || accountNameIdx === -1) {
+                alert('Could not find "Account Name" header in the first 3 rows. Please check the file format.');
+                console.error('First 3 rows:', data.slice(0, 3));
+                return;
+            }
+            
+            const headerRow = data[headerRowIndex];
+            console.log('Header row (index ' + headerRowIndex + '):', headerRow);
+            
+            // Find other column indices from the header row
+            let actual2024Idx = -1;
+            let actual2025Idx = -1;
+            
+            for (let i = 0; i < headerRow.length; i++) {
+                const header = headerRow[i];
+                if (header) {
+                    const headerStr = header.toString();
+                    if (headerStr.includes('2023 Actual')) {
+                        actual2024Idx = i;
+                    } else if (headerStr.includes('2024 Actual')) {
+                        actual2025Idx = i;
+                    }
+                }
+            }
+            
+            console.log('2024 Actual index:', actual2024Idx);
+            console.log('2025 Actual index:', actual2025Idx);
+            
+            // Find product category columns
+            // They might be in the header row or in a row above it
             const columnMap = {
-                'E+H': headers.findIndex(h => h && (h.toString().includes('Endress') || h.toString().includes('E+H'))),
-                'Filtration': headers.findIndex(h => h && h.toString().includes('Filtration')),
-                'Misc': headers.findIndex(h => h && h.toString().includes('Misc')),
-                'Fittings': headers.findIndex(h => h && h.toString().includes('Fittings')),
-                'Samson': headers.findIndex(h => h && h.toString().includes('Samson')),
-                'Valves': headers.findIndex(h => h && h.toString().includes('Valves')),
-                'Projects': headers.findIndex(h => h && h.toString().includes('Projects'))
+                'E+H': -1,
+                'Filtration': -1,
+                'Misc': -1,
+                'Fittings': -1,
+                'Samson': -1,
+                'Valves': -1,
+                'Projects': -1
             };
+            
+            // Check header row and row above (if exists) for product names
+            const rowsToCheck = [headerRow];
+            if (headerRowIndex > 0) {
+                rowsToCheck.unshift(data[headerRowIndex - 1]); // Add row above
+            }
+            
+            for (const rowToCheck of rowsToCheck) {
+                for (let i = 0; i < rowToCheck.length; i++) {
+                    const header = rowToCheck[i];
+                    if (header) {
+                        const headerStr = header.toString();
+                        if ((headerStr.includes('Endress') || headerStr.includes('Hauser')) && columnMap['E+H'] === -1) {
+                            columnMap['E+H'] = i;
+                        } else if (headerStr.includes('Filtration') && columnMap['Filtration'] === -1) {
+                            columnMap['Filtration'] = i;
+                        } else if (headerStr.includes('Misc') && columnMap['Misc'] === -1) {
+                            columnMap['Misc'] = i;
+                        } else if (headerStr.includes('Fittings') && columnMap['Fittings'] === -1) {
+                            columnMap['Fittings'] = i;
+                        } else if (headerStr.includes('Samson') && columnMap['Samson'] === -1) {
+                            columnMap['Samson'] = i;
+                        } else if (headerStr.includes('Valves') && columnMap['Valves'] === -1) {
+                            columnMap['Valves'] = i;
+                        } else if (headerStr.includes('Projects') && columnMap['Projects'] === -1) {
+                            columnMap['Projects'] = i;
+                        }
+                    }
+                }
+            }
+            
+            console.log('Product column map:', columnMap);
             
             const tbody = document.getElementById('strategyTableBody');
             tbody.innerHTML = '';
             strategyData = [];
             
-            // Process data rows
+            // Process data rows starting from the row after the header
+            let rowsProcessed = 0;
             for (let i = headerRowIndex + 1; i < data.length; i++) {
                 const row = data[i];
                 if (!row || row.length === 0) continue;
                 
                 const accountName = row[accountNameIdx];
-                if (!accountName || accountName.toString().trim() === '') continue;
+                if (!accountName) continue;
+                
+                const accountStr = accountName.toString().trim();
+                if (accountStr === '') continue;
+                
+                // Skip section headers and totals
+                const accountLower = accountStr.toLowerCase();
+                if (accountLower.includes('total') || 
+                    accountLower === 'end users' || 
+                    accountLower === 'distributors' ||
+                    accountLower.includes('sub-total')) {
+                    console.log(`Skipping section header: ${accountStr}`);
+                    continue;
+                }
+                
+                // Parse numeric values
+                const parseNum = (val) => {
+                    if (!val) return 0;
+                    const str = val.toString();
+                    // Skip formulas
+                    if (str.startsWith('=')) return 0;
+                    const num = parseFloat(str);
+                    return isNaN(num) ? 0 : num;
+                };
                 
                 const rowData = {
-                    accountName: accountName,
-                    actual2024: parseFloat(row[actual2024Idx]) || 0,
-                    actual2025: parseFloat(row[actual2025Idx]) || 0,
+                    accountName: accountStr,
+                    actual2024: parseNum(row[actual2024Idx]),
+                    actual2025: parseNum(row[actual2025Idx]),
                     target2026: 0,
-                    eh: parseFloat(row[columnMap['E+H']]) || 0,
-                    filtration: parseFloat(row[columnMap['Filtration']]) || 0,
-                    misc: parseFloat(row[columnMap['Misc']]) || 0,
-                    fittings: parseFloat(row[columnMap['Fittings']]) || 0,
-                    samson: parseFloat(row[columnMap['Samson']]) || 0,
-                    valves: parseFloat(row[columnMap['Valves']]) || 0,
-                    projects: parseFloat(row[columnMap['Projects']]) || 0,
+                    eh: parseNum(row[columnMap['E+H']]),
+                    filtration: parseNum(row[columnMap['Filtration']]),
+                    misc: parseNum(row[columnMap['Misc']]),
+                    fittings: parseNum(row[columnMap['Fittings']]),
+                    samson: parseNum(row[columnMap['Samson']]),
+                    valves: parseNum(row[columnMap['Valves']]),
+                    projects: parseNum(row[columnMap['Projects']]),
                     reviewed: false
                 };
                 
+                console.log(`Row ${i + 1} (${accountStr}):`, rowData);
+                
                 strategyData.push(rowData);
                 addStrategyRow(rowData, strategyData.length - 1);
+                rowsProcessed++;
             }
+            
+            console.log('Total rows processed:', rowsProcessed);
+            alert(`Successfully imported ${rowsProcessed} accounts`);
             
             updateTotals();
             checkAccountMatches();
         }
 
+        // Format currency
+        function formatCurrency(value) {
+            if (!value || value === 0) return '-';
+            return '$' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        
+        // Update account status
+        function updateAccountStatus(index, status) {
+            const tbody = document.getElementById('accountTableBody');
+            const row = tbody.rows[index];
+            
+            // Remove all status classes
+            row.classList.remove('status-keep', 'status-notsure', 'status-remove');
+            
+            // Add appropriate class
+            if (status === 'keep') {
+                row.classList.add('status-keep');
+            } else if (status === 'notsure') {
+                row.classList.add('status-notsure');
+            } else if (status === 'remove') {
+                row.classList.add('status-remove');
+            }
+            
+            // Store status in account data
+            if (accountsData[index]) {
+                accountsData[index].status = status;
+            }
+        }
+        
+        // Update product value and recalculate target
+        function updateProductValue(index, field, value) {
+            strategyData[index][field] = value;
+            
+            // Recalculate target2026 as sum of all product columns (excluding actual2025)
+            const target = (strategyData[index].eh || 0) +
+                          (strategyData[index].filtration || 0) +
+                          (strategyData[index].misc || 0) +
+                          (strategyData[index].fittings || 0) +
+                          (strategyData[index].samson || 0) +
+                          (strategyData[index].valves || 0) +
+                          (strategyData[index].projects || 0);
+            
+            strategyData[index].target2026 = target;
+            
+            // Update the target cell display
+            const targetCell = document.getElementById(`target-cell-${index}`);
+            if (targetCell) {
+                targetCell.textContent = formatCurrency(target);
+            }
+            
+            updateTotals();
+            
+            // Update cell styling for the edited field
+            const input = document.getElementById(`${field}-${index}`);
+            if (input) {
+                if (input.value && input.value !== '' && input.value !== '0') {
+                    input.classList.add('filled');
+                } else {
+                    input.classList.remove('filled');
+                }
+            }
+        }
+        
+        // Handle blur on dollar input fields to reformat
+        function handleDollarInputBlur(index, field, inputElement) {
+            const value = parseFloat(inputElement.value.replace(/[$,]/g, '')) || 0;
+            strategyData[index][field] = value;
+            
+            // Reformat with dollar sign and commas
+            if (value && value !== 0) {
+                inputElement.value = '$' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            } else {
+                inputElement.value = '';
+            }
+        }
+        
+        // Adjust product value by $10,000
+        function adjustProductValue(index, field, direction) {
+            const currentValue = strategyData[index][field] || 0;
+            let newValue;
+            
+            if (direction === 'up') {
+                newValue = Math.ceil(currentValue / 10000) * 10000 + 10000;
+            } else {
+                newValue = Math.max(0, Math.floor(currentValue / 10000) * 10000 - 10000);
+            }
+            
+            strategyData[index][field] = newValue;
+            
+            // Update the input field with formatted value
+            const input = document.getElementById(`${field}-${index}`);
+            if (input) {
+                if (newValue && newValue !== 0) {
+                    input.value = '$' + newValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                } else {
+                    input.value = '';
+                }
+            }
+            
+            // Recalculate target (but not if the field being adjusted is actual2025)
+            if (field !== 'actual2025') {
+                updateProductValue(index, field, newValue);
+            } else {
+                updateTotals();
+            }
+        }
+
+        // Format number for input display (shows with commas)
+        function formatNumberInput(value) {
+            if (!value || value === 0) return '';
+            return value.toLocaleString('en-US');
+        }
+        
+        // Parse formatted input back to number
+        function parseFormattedInput(value) {
+            if (!value) return 0;
+            return parseFloat(value.toString().replace(/,/g, '')) || 0;
+        }
+        
         // Add a new row to strategy table
         function addStrategyRow(data = null, index = null) {
             const tbody = document.getElementById('strategyTableBody');
@@ -519,54 +950,92 @@
                 strategyData.push(data);
             }
             
+            const displayValue = (val) => val && val !== 0 ? '$' + val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+            
             row.innerHTML = `
                 <td><input type="checkbox" class="review-checkbox" onchange="toggleReviewed(${rowIndex})" ${data.reviewed ? 'checked' : ''}></td>
-                <td><input type="text" class="editable-cell" value="${data.accountName}" onchange="updateStrategyData(${rowIndex}, 'accountName', this.value)" onblur="checkAccountMatches()"></td>
-                <td>$${data.actual2024.toLocaleString()}</td>
-                <td><span class="placeholder-text" id="placeholder2025-${rowIndex}">${data.actual2025 > 0 ? '$' + data.actual2025.toLocaleString() : ''}</span><input type="number" class="editable-cell" id="actual2025-${rowIndex}" value="${data.actual2025 || ''}" onchange="updateStrategyData(${rowIndex}, 'actual2025', parseFloat(this.value) || 0)" onfocus="clearPlaceholder(${rowIndex}, '2025')" style="display: none;"></td>
-                <td><input type="number" class="editable-cell" id="target2026-${rowIndex}" placeholder="${data.actual2025 > 0 ? '$' + data.actual2025.toLocaleString() : ''}" value="${data.target2026 || ''}" onchange="updateStrategyData(${rowIndex}, 'target2026', parseFloat(this.value) || 0)" onfocus="clearPlaceholder(${rowIndex}, 'target')"></td>
-                <td><input type="number" class="editable-cell" value="${data.eh || ''}" onchange="updateStrategyData(${rowIndex}, 'eh', parseFloat(this.value) || 0)"></td>
-                <td><input type="number" class="editable-cell" value="${data.filtration || ''}" onchange="updateStrategyData(${rowIndex}, 'filtration', parseFloat(this.value) || 0)"></td>
-                <td><input type="number" class="editable-cell" value="${data.misc || ''}" onchange="updateStrategyData(${rowIndex}, 'misc', parseFloat(this.value) || 0)"></td>
-                <td><input type="number" class="editable-cell" value="${data.fittings || ''}" onchange="updateStrategyData(${rowIndex}, 'fittings', parseFloat(this.value) || 0)"></td>
-                <td><input type="number" class="editable-cell" value="${data.samson || ''}" onchange="updateStrategyData(${rowIndex}, 'samson', parseFloat(this.value) || 0)"></td>
-                <td><input type="number" class="editable-cell" value="${data.valves || ''}" onchange="updateStrategyData(${rowIndex}, 'valves', parseFloat(this.value) || 0)"></td>
-                <td><input type="number" class="editable-cell" value="${data.projects || ''}" onchange="updateStrategyData(${rowIndex}, 'projects', parseFloat(this.value) || 0)"></td>
+                <td><input type="text" class="editable-cell" value="${data.accountName}" onchange="updateStrategyData(${rowIndex}, 'accountName', this.value); checkAccountMatches();" style="text-align: left;"></td>
+                <td>${formatCurrency(data.actual2024)}</td>
+                <td>${formatCurrency(data.actual2025)}</td>
+                <td id="target-cell-${rowIndex}">${formatCurrency(data.target2026)}</td>
+                <td>
+                    <div class="number-input-wrapper">
+                        <button class="arrow-btn" onclick="adjustProductValue(${rowIndex}, 'eh', 'down')">▼</button>
+                        <input type="text" class="editable-cell" id="eh-${rowIndex}" value="${displayValue(data.eh)}" 
+                               onfocus="this.value = this.value.replace(/[$,]/g, '')" 
+                               onblur="handleDollarInputBlur(${rowIndex}, 'eh', this)" 
+                               onchange="updateProductValue(${rowIndex}, 'eh', parseFloat(this.value.replace(/[$,]/g, '')) || 0)">
+                        <button class="arrow-btn" onclick="adjustProductValue(${rowIndex}, 'eh', 'up')">▲</button>
+                    </div>
+                </td>
+                <td>
+                    <div class="number-input-wrapper">
+                        <button class="arrow-btn" onclick="adjustProductValue(${rowIndex}, 'filtration', 'down')">▼</button>
+                        <input type="text" class="editable-cell" id="filtration-${rowIndex}" value="${displayValue(data.filtration)}" 
+                               onfocus="this.value = this.value.replace(/[$,]/g, '')" 
+                               onblur="handleDollarInputBlur(${rowIndex}, 'filtration', this)" 
+                               onchange="updateProductValue(${rowIndex}, 'filtration', parseFloat(this.value.replace(/[$,]/g, '')) || 0)">
+                        <button class="arrow-btn" onclick="adjustProductValue(${rowIndex}, 'filtration', 'up')">▲</button>
+                    </div>
+                </td>
+                <td>
+                    <div class="number-input-wrapper">
+                        <button class="arrow-btn" onclick="adjustProductValue(${rowIndex}, 'misc', 'down')">▼</button>
+                        <input type="text" class="editable-cell" id="misc-${rowIndex}" value="${displayValue(data.misc)}" 
+                               onfocus="this.value = this.value.replace(/[$,]/g, '')" 
+                               onblur="handleDollarInputBlur(${rowIndex}, 'misc', this)" 
+                               onchange="updateProductValue(${rowIndex}, 'misc', parseFloat(this.value.replace(/[$,]/g, '')) || 0)">
+                        <button class="arrow-btn" onclick="adjustProductValue(${rowIndex}, 'misc', 'up')">▲</button>
+                    </div>
+                </td>
+                <td>
+                    <div class="number-input-wrapper">
+                        <button class="arrow-btn" onclick="adjustProductValue(${rowIndex}, 'fittings', 'down')">▼</button>
+                        <input type="text" class="editable-cell" id="fittings-${rowIndex}" value="${displayValue(data.fittings)}" 
+                               onfocus="this.value = this.value.replace(/[$,]/g, '')" 
+                               onblur="handleDollarInputBlur(${rowIndex}, 'fittings', this)" 
+                               onchange="updateProductValue(${rowIndex}, 'fittings', parseFloat(this.value.replace(/[$,]/g, '')) || 0)">
+                        <button class="arrow-btn" onclick="adjustProductValue(${rowIndex}, 'fittings', 'up')">▲</button>
+                    </div>
+                </td>
+                <td>
+                    <div class="number-input-wrapper">
+                        <button class="arrow-btn" onclick="adjustProductValue(${rowIndex}, 'samson', 'down')">▼</button>
+                        <input type="text" class="editable-cell" id="samson-${rowIndex}" value="${displayValue(data.samson)}" 
+                               onfocus="this.value = this.value.replace(/[$,]/g, '')" 
+                               onblur="handleDollarInputBlur(${rowIndex}, 'samson', this)" 
+                               onchange="updateProductValue(${rowIndex}, 'samson', parseFloat(this.value.replace(/[$,]/g, '')) || 0)">
+                        <button class="arrow-btn" onclick="adjustProductValue(${rowIndex}, 'samson', 'up')">▲</button>
+                    </div>
+                </td>
+                <td>
+                    <div class="number-input-wrapper">
+                        <button class="arrow-btn" onclick="adjustProductValue(${rowIndex}, 'valves', 'down')">▼</button>
+                        <input type="text" class="editable-cell" id="valves-${rowIndex}" value="${displayValue(data.valves)}" 
+                               onfocus="this.value = this.value.replace(/[$,]/g, '')" 
+                               onblur="handleDollarInputBlur(${rowIndex}, 'valves', this)" 
+                               onchange="updateProductValue(${rowIndex}, 'valves', parseFloat(this.value.replace(/[$,]/g, '')) || 0)">
+                        <button class="arrow-btn" onclick="adjustProductValue(${rowIndex}, 'valves', 'up')">▲</button>
+                    </div>
+                </td>
+                <td>
+                    <div class="number-input-wrapper">
+                        <button class="arrow-btn" onclick="adjustProductValue(${rowIndex}, 'projects', 'down')">▼</button>
+                        <input type="text" class="editable-cell" id="projects-${rowIndex}" value="${displayValue(data.projects)}" 
+                               onfocus="this.value = this.value.replace(/[$,]/g, '')" 
+                               onblur="handleDollarInputBlur(${rowIndex}, 'projects', this)" 
+                               onchange="updateProductValue(${rowIndex}, 'projects', parseFloat(this.value.replace(/[$,]/g, '')) || 0)">
+                        <button class="arrow-btn" onclick="adjustProductValue(${rowIndex}, 'projects', 'up')">▲</button>
+                    </div>
+                </td>
             `;
             
             checkAccountMatch(rowIndex);
         }
 
-        // Clear placeholder when user starts typing
-        function clearPlaceholder(rowIndex, field) {
-            if (field === '2025') {
-                const placeholder = document.getElementById(`placeholder2025-${rowIndex}`);
-                const input = document.getElementById(`actual2025-${rowIndex}`);
-                placeholder.style.display = 'none';
-                input.style.display = 'block';
-                input.focus();
-            } else if (field === 'target') {
-                const input = document.getElementById(`target2026-${rowIndex}`);
-                input.placeholder = '';
-            }
-        }
-
         // Update strategy data
         function updateStrategyData(index, field, value) {
             strategyData[index][field] = value;
-            
-            // Update cell background color
-            const row = document.getElementById('strategyTableBody').rows[index];
-            const cells = row.querySelectorAll('.editable-cell');
-            
-            cells.forEach(cell => {
-                if (cell.value && cell.value !== '') {
-                    cell.classList.add('filled');
-                } else {
-                    cell.classList.remove('filled');
-                }
-            });
-            
             updateTotals();
             checkAccountMatch(index);
         }
@@ -583,23 +1052,20 @@
             const accountName = strategyData[index].accountName.trim().toLowerCase();
             
             if (accountName === '') {
-                row.classList.remove('highlighted', 'reviewed');
+                row.classList.remove('highlighted');
                 return;
             }
             
             const accountExists = accountsData.some(account => {
-                const name = (account['Account Name'] || account['AccountName'] || '').toString().trim().toLowerCase();
+                const name = (account['Name'] || account['Account Name'] || account['AccountName'] || '').toString().trim().toLowerCase();
                 return name === accountName;
             });
             
+            // If account does NOT exist in Account Map and NOT reviewed, highlight yellow
             if (!accountExists && !strategyData[index].reviewed) {
                 row.classList.add('highlighted');
-                row.classList.remove('reviewed');
             } else {
                 row.classList.remove('highlighted');
-                if (strategyData[index].reviewed || accountExists) {
-                    row.classList.add('reviewed');
-                }
             }
         }
 
@@ -638,22 +1104,109 @@
                 totals.projects += parseFloat(row.projects) || 0;
             });
             
-            document.getElementById('total2024').textContent = '$' + totals.actual2024.toLocaleString();
-            document.getElementById('total2025').textContent = '$' + totals.actual2025.toLocaleString();
-            document.getElementById('total2026Target').textContent = '$' + totals.target2026.toLocaleString();
-            document.getElementById('totalEH').textContent = '$' + totals.eh.toLocaleString();
-            document.getElementById('totalFiltration').textContent = '$' + totals.filtration.toLocaleString();
-            document.getElementById('totalMisc').textContent = '$' + totals.misc.toLocaleString();
-            document.getElementById('totalFittings').textContent = '$' + totals.fittings.toLocaleString();
-            document.getElementById('totalSamson').textContent = '$' + totals.samson.toLocaleString();
-            document.getElementById('totalValves').textContent = '$' + totals.valves.toLocaleString();
-            document.getElementById('totalProjects').textContent = '$' + totals.projects.toLocaleString();
+            document.getElementById('total2024').textContent = formatCurrency(totals.actual2024);
+            document.getElementById('total2025').textContent = formatCurrency(totals.actual2025);
+            document.getElementById('total2026Target').textContent = formatCurrency(totals.target2026);
+            document.getElementById('totalEH').textContent = formatCurrency(totals.eh);
+            document.getElementById('totalFiltration').textContent = formatCurrency(totals.filtration);
+            document.getElementById('totalMisc').textContent = formatCurrency(totals.misc);
+            document.getElementById('totalFittings').textContent = formatCurrency(totals.fittings);
+            document.getElementById('totalSamson').textContent = formatCurrency(totals.samson);
+            document.getElementById('totalValves').textContent = formatCurrency(totals.valves);
+            document.getElementById('totalProjects').textContent = formatCurrency(totals.projects);
         }
 
         // Add new row button (you can add this if needed)
         function addNewRow() {
             addStrategyRow();
             updateTotals();
+        }
+        
+        // Export Account Map to Excel
+        function exportAccountMap() {
+            if (accountsData.length === 0) {
+                alert('No account data to export. Please import data first.');
+                return;
+            }
+            
+            const exportData = accountsData.map((account, index) => {
+                return {
+                    'Account Name': account['Name'] || account['Account Name'] || account['AccountName'] || '',
+                    'City': account['Mail City'] || account['City'] || '',
+                    'State': account['Mail State'] || account['State'] || '',
+                    'Customer ID': account['Customer Id'] || account['Customer ID'] || account['CustomerID'] || '',
+                    'Status': account.status || ''
+                };
+            });
+            
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Account Map');
+            
+            const fileName = 'Account_Map_' + new Date().toISOString().split('T')[0] + '.xlsx';
+            XLSX.writeFile(wb, fileName);
+        }
+        
+        // Export Strategy Data to Excel
+        function exportStrategyData() {
+            if (strategyData.length === 0) {
+                alert('No strategy data to export. Please import data first.');
+                return;
+            }
+            
+            const exportData = strategyData.map(row => {
+                return {
+                    'Account Name': row.accountName,
+                    '2024 Actual Net Sales': row.actual2024 || 0,
+                    '2025 Actual Net Sales': row.actual2025 || 0,
+                    '2026 Target': row.target2026 || 0,
+                    'E+H Component': row.eh || 0,
+                    'Filtration': row.filtration || 0,
+                    'Misc': row.misc || 0,
+                    'Fittings': row.fittings || 0,
+                    'Samson': row.samson || 0,
+                    'Valves': row.valves || 0,
+                    'Projects': row.projects || 0,
+                    'Reviewed': row.reviewed ? 'Yes' : 'No'
+                };
+            });
+            
+            // Add totals row
+            const totals = {
+                'Account Name': 'TOTALS',
+                '2024 Actual Net Sales': strategyData.reduce((sum, row) => sum + (parseFloat(row.actual2024) || 0), 0),
+                '2025 Actual Net Sales': strategyData.reduce((sum, row) => sum + (parseFloat(row.actual2025) || 0), 0),
+                '2026 Target': strategyData.reduce((sum, row) => sum + (parseFloat(row.target2026) || 0), 0),
+                'E+H Component': strategyData.reduce((sum, row) => sum + (parseFloat(row.eh) || 0), 0),
+                'Filtration': strategyData.reduce((sum, row) => sum + (parseFloat(row.filtration) || 0), 0),
+                'Misc': strategyData.reduce((sum, row) => sum + (parseFloat(row.misc) || 0), 0),
+                'Fittings': strategyData.reduce((sum, row) => sum + (parseFloat(row.fittings) || 0), 0),
+                'Samson': strategyData.reduce((sum, row) => sum + (parseFloat(row.samson) || 0), 0),
+                'Valves': strategyData.reduce((sum, row) => sum + (parseFloat(row.valves) || 0), 0),
+                'Projects': strategyData.reduce((sum, row) => sum + (parseFloat(row.projects) || 0), 0),
+                'Reviewed': ''
+            };
+            
+            exportData.push(totals);
+            
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            
+            // Format currency columns
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            for (let R = range.s.r + 1; R <= range.e.r; R++) {
+                for (let C = 1; C <= 10; C++) { // Columns B through K (numeric columns)
+                    const cellAddress = XLSX.utils.encode_cell({r: R, c: C});
+                    if (ws[cellAddress]) {
+                        ws[cellAddress].z = '$#,##0.00';
+                    }
+                }
+            }
+            
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '2026 Strategy');
+            
+            const fileName = '2026_Strategy_' + new Date().toISOString().split('T')[0] + '.xlsx';
+            XLSX.writeFile(wb, fileName);
         }
 
         // Initialize on page load
