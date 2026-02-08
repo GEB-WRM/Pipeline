@@ -339,9 +339,10 @@
                         <tr>
                             <th>Reviewed</th>
                             <th>Account Name</th>
-                            <th>2024 Actual Net Sales</th>
-                            <th>2025 Actual Net Sales</th>
-                            <th>2026 Target</th>
+                            <th>2023 Actual NS</th>
+                            <th>2024 Actual NS</th>
+                            <th>2025 Actual NS</th>
+                            <th>2026 Forecast</th>
                             <th>E+H Component</th>
                             <th>Filtration</th>
                             <th>Misc</th>
@@ -358,6 +359,7 @@
                         <tr class="totals-row">
                             <td></td>
                             <td>TOTALS</td>
+                            <td id="total2023">$0.00</td>
                             <td id="total2024">$0.00</td>
                             <td id="total2025">$0.00</td>
                             <td id="total2026Target">$0.00</td>
@@ -651,55 +653,55 @@
                 return;
             }
             
-            // Find which row has "Account Name" header
-            let headerRowIndex = -1;
-            let accountNameIdx = -1;
+            // The file structure is:
+            // Row 1 (index 0): Headers including "Account Name", "2023 Actual NS", "2024 Actual NS", etc.
+            // Row 2+ (index 1+): Data rows
             
-            // Check first 3 rows for "Account Name" header
-            for (let rowIdx = 0; rowIdx < Math.min(3, data.length); rowIdx++) {
-                const row = data[rowIdx];
-                for (let colIdx = 0; colIdx < row.length; colIdx++) {
-                    const cell = row[colIdx];
-                    if (cell && cell.toString().toLowerCase().trim() === 'account name') {
-                        headerRowIndex = rowIdx;
-                        accountNameIdx = colIdx;
-                        console.log(`Found "Account Name" at Row ${rowIdx + 1}, Column ${colIdx + 1}`);
-                        break;
-                    }
+            const headerRow = data[0]; // Row 1 in Excel
+            
+            console.log('Header row (Row 1):', headerRow);
+            
+            // Find "Account Name" column
+            let accountNameIdx = -1;
+            for (let i = 0; i < headerRow.length; i++) {
+                if (headerRow[i] && headerRow[i].toString().toLowerCase().trim() === 'account name') {
+                    accountNameIdx = i;
+                    console.log(`Found "Account Name" at column index ${i}`);
+                    break;
                 }
-                if (headerRowIndex !== -1) break;
             }
             
-            if (headerRowIndex === -1 || accountNameIdx === -1) {
-                alert('Could not find "Account Name" header in the first 3 rows. Please check the file format.');
-                console.error('First 3 rows:', data.slice(0, 3));
+            if (accountNameIdx === -1) {
+                alert('Could not find "Account Name" column. Please check the file format.');
+                console.error('Header row:', headerRow);
                 return;
             }
             
-            const headerRow = data[headerRowIndex];
-            console.log('Header row (index ' + headerRowIndex + '):', headerRow);
-            
-            // Find other column indices from the header row
+            // Find the actual columns by matching exact header text
+            let actual2023Idx = -1;
             let actual2024Idx = -1;
-            let actual2025Idx = -1;
+            let actual2025Idx = -1; // Note: This might not exist, we calculate from product categories
             
             for (let i = 0; i < headerRow.length; i++) {
                 const header = headerRow[i];
                 if (header) {
-                    const headerStr = header.toString();
-                    if (headerStr.includes('2023 Actual')) {
+                    const headerStr = header.toString().trim();
+                    if (headerStr === '2023 Actual NS') {
+                        actual2023Idx = i;
+                        console.log(`Found "2023 Actual NS" at column index ${i}`);
+                    } else if (headerStr === '2024 Actual NS') {
                         actual2024Idx = i;
-                    } else if (headerStr.includes('2024 Actual')) {
+                        console.log(`Found "2024 Actual NS" at column index ${i}`);
+                    } else if (headerStr === '2025 Actual NS' || headerStr === '2025 Forecast NS') {
                         actual2025Idx = i;
+                        console.log(`Found "2025 data" at column index ${i}`);
                     }
                 }
             }
             
-            console.log('2024 Actual index:', actual2024Idx);
-            console.log('2025 Actual index:', actual2025Idx);
+            console.log('Column indices - 2023:', actual2023Idx, '2024:', actual2024Idx, '2025:', actual2025Idx);
             
-            // Find product category columns
-            // They might be in the header row or in a row above it
+            // Find product category columns from Row 1
             const columnMap = {
                 'E+H': -1,
                 'Filtration': -1,
@@ -710,32 +712,24 @@
                 'Projects': -1
             };
             
-            // Check header row and row above (if exists) for product names
-            const rowsToCheck = [headerRow];
-            if (headerRowIndex > 0) {
-                rowsToCheck.unshift(data[headerRowIndex - 1]); // Add row above
-            }
-            
-            for (const rowToCheck of rowsToCheck) {
-                for (let i = 0; i < rowToCheck.length; i++) {
-                    const header = rowToCheck[i];
-                    if (header) {
-                        const headerStr = header.toString();
-                        if ((headerStr.includes('Endress') || headerStr.includes('Hauser')) && columnMap['E+H'] === -1) {
-                            columnMap['E+H'] = i;
-                        } else if (headerStr.includes('Filtration') && columnMap['Filtration'] === -1) {
-                            columnMap['Filtration'] = i;
-                        } else if (headerStr.includes('Misc') && columnMap['Misc'] === -1) {
-                            columnMap['Misc'] = i;
-                        } else if (headerStr.includes('Fittings') && columnMap['Fittings'] === -1) {
-                            columnMap['Fittings'] = i;
-                        } else if (headerStr.includes('Samson') && columnMap['Samson'] === -1) {
-                            columnMap['Samson'] = i;
-                        } else if (headerStr.includes('Valves') && columnMap['Valves'] === -1) {
-                            columnMap['Valves'] = i;
-                        } else if (headerStr.includes('Projects') && columnMap['Projects'] === -1) {
-                            columnMap['Projects'] = i;
-                        }
+            for (let i = 0; i < headerRow.length; i++) {
+                const header = headerRow[i];
+                if (header) {
+                    const headerStr = header.toString();
+                    if (headerStr.includes('Endress') || headerStr.includes('Hauser')) {
+                        columnMap['E+H'] = i;
+                    } else if (headerStr.includes('Filtration')) {
+                        columnMap['Filtration'] = i;
+                    } else if (headerStr.includes('Misc')) {
+                        columnMap['Misc'] = i;
+                    } else if (headerStr.includes('Fittings')) {
+                        columnMap['Fittings'] = i;
+                    } else if (headerStr.includes('Samson')) {
+                        columnMap['Samson'] = i;
+                    } else if (headerStr.includes('Valves')) {
+                        columnMap['Valves'] = i;
+                    } else if (headerStr.includes('Projects')) {
+                        columnMap['Projects'] = i;
                     }
                 }
             }
@@ -746,9 +740,9 @@
             tbody.innerHTML = '';
             strategyData = [];
             
-            // Process data rows starting from the row after the header
+            // Process data rows starting from index 1 (Row 2 in Excel)
             let rowsProcessed = 0;
-            for (let i = headerRowIndex + 1; i < data.length; i++) {
+            for (let i = 1; i < data.length; i++) {
                 const row = data[i];
                 if (!row || row.length === 0) continue;
                 
@@ -780,8 +774,9 @@
                 
                 const rowData = {
                     accountName: accountStr,
+                    actual2023: parseNum(row[actual2023Idx]),
                     actual2024: parseNum(row[actual2024Idx]),
-                    actual2025: parseNum(row[actual2025Idx]),
+                    actual2025: 0, // We'll calculate this from product categories or use column if exists
                     target2026: 0,
                     eh: parseNum(row[columnMap['E+H']]),
                     filtration: parseNum(row[columnMap['Filtration']]),
@@ -792,6 +787,14 @@
                     projects: parseNum(row[columnMap['Projects']]),
                     reviewed: false
                 };
+                
+                // If we have a 2025 column that's not a formula, use it
+                if (actual2025Idx !== -1) {
+                    const val2025 = row[actual2025Idx];
+                    if (val2025 && !val2025.toString().startsWith('=')) {
+                        rowData.actual2025 = parseNum(val2025);
+                    }
+                }
                 
                 console.log(`Row ${i + 1} (${accountStr}):`, rowData);
                 
@@ -935,6 +938,7 @@
             if (data === null) {
                 data = {
                     accountName: '',
+                    actual2023: 0,
                     actual2024: 0,
                     actual2025: 0,
                     target2026: 0,
@@ -955,6 +959,7 @@
             row.innerHTML = `
                 <td><input type="checkbox" class="review-checkbox" onchange="toggleReviewed(${rowIndex})" ${data.reviewed ? 'checked' : ''}></td>
                 <td><input type="text" class="editable-cell" value="${data.accountName}" onchange="updateStrategyData(${rowIndex}, 'accountName', this.value); checkAccountMatches();" style="text-align: left;"></td>
+                <td>${formatCurrency(data.actual2023)}</td>
                 <td>${formatCurrency(data.actual2024)}</td>
                 <td>${formatCurrency(data.actual2025)}</td>
                 <td id="target-cell-${rowIndex}">${formatCurrency(data.target2026)}</td>
@@ -1079,6 +1084,7 @@
         // Update totals
         function updateTotals() {
             const totals = {
+                actual2023: 0,
                 actual2024: 0,
                 actual2025: 0,
                 target2026: 0,
@@ -1092,6 +1098,7 @@
             };
             
             strategyData.forEach(row => {
+                totals.actual2023 += parseFloat(row.actual2023) || 0;
                 totals.actual2024 += parseFloat(row.actual2024) || 0;
                 totals.actual2025 += parseFloat(row.actual2025) || 0;
                 totals.target2026 += parseFloat(row.target2026) || 0;
@@ -1104,6 +1111,7 @@
                 totals.projects += parseFloat(row.projects) || 0;
             });
             
+            document.getElementById('total2023').textContent = formatCurrency(totals.actual2023);
             document.getElementById('total2024').textContent = formatCurrency(totals.actual2024);
             document.getElementById('total2025').textContent = formatCurrency(totals.actual2025);
             document.getElementById('total2026Target').textContent = formatCurrency(totals.target2026);
@@ -1157,9 +1165,10 @@
             const exportData = strategyData.map(row => {
                 return {
                     'Account Name': row.accountName,
+                    '2023 Actual Net Sales': row.actual2023 || 0,
                     '2024 Actual Net Sales': row.actual2024 || 0,
                     '2025 Actual Net Sales': row.actual2025 || 0,
-                    '2026 Target': row.target2026 || 0,
+                    '2026 Forecast': row.target2026 || 0,
                     'E+H Component': row.eh || 0,
                     'Filtration': row.filtration || 0,
                     'Misc': row.misc || 0,
@@ -1174,9 +1183,10 @@
             // Add totals row
             const totals = {
                 'Account Name': 'TOTALS',
+                '2023 Actual Net Sales': strategyData.reduce((sum, row) => sum + (parseFloat(row.actual2023) || 0), 0),
                 '2024 Actual Net Sales': strategyData.reduce((sum, row) => sum + (parseFloat(row.actual2024) || 0), 0),
                 '2025 Actual Net Sales': strategyData.reduce((sum, row) => sum + (parseFloat(row.actual2025) || 0), 0),
-                '2026 Target': strategyData.reduce((sum, row) => sum + (parseFloat(row.target2026) || 0), 0),
+                '2026 Forecast': strategyData.reduce((sum, row) => sum + (parseFloat(row.target2026) || 0), 0),
                 'E+H Component': strategyData.reduce((sum, row) => sum + (parseFloat(row.eh) || 0), 0),
                 'Filtration': strategyData.reduce((sum, row) => sum + (parseFloat(row.filtration) || 0), 0),
                 'Misc': strategyData.reduce((sum, row) => sum + (parseFloat(row.misc) || 0), 0),
@@ -1194,7 +1204,7 @@
             // Format currency columns
             const range = XLSX.utils.decode_range(ws['!ref']);
             for (let R = range.s.r + 1; R <= range.e.r; R++) {
-                for (let C = 1; C <= 10; C++) { // Columns B through K (numeric columns)
+                for (let C = 1; C <= 11; C++) { // Columns B through L (numeric columns)
                     const cellAddress = XLSX.utils.encode_cell({r: R, c: C});
                     if (ws[cellAddress]) {
                         ws[cellAddress].z = '$#,##0.00';
