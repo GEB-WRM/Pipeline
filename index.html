@@ -308,6 +308,7 @@
                         <input type="file" id="accountFileInput" accept=".xlsx,.xls,.csv" />
                         <button class="btn btn-primary" onclick="importAccountData()">Import Accounts</button>
                         <button class="btn btn-secondary" onclick="exportAccountMap()">Export to Excel</button>
+                        <button class="btn btn-secondary" onclick="clearAllData()" style="background: #E53E3E;">Clear All Data</button>
                     </div>
                 </div>
             </div>
@@ -394,6 +395,126 @@
         let strategyData = [];
         let map;
         let markers = [];
+
+        // Save data to localStorage
+        function saveToLocalStorage() {
+            try {
+                const dataToSave = {
+                    accountsData: accountsData,
+                    strategyData: strategyData,
+                    timestamp: new Date().toISOString()
+                };
+                localStorage.setItem('salesPipelineData', JSON.stringify(dataToSave));
+                console.log('Data saved to localStorage at', dataToSave.timestamp);
+            } catch (error) {
+                console.error('Error saving to localStorage:', error);
+            }
+        }
+
+        // Load data from localStorage
+        function loadFromLocalStorage() {
+            try {
+                const savedData = localStorage.getItem('salesPipelineData');
+                if (savedData) {
+                    const parsed = JSON.parse(savedData);
+                    accountsData = parsed.accountsData || [];
+                    strategyData = parsed.strategyData || [];
+                    
+                    console.log('Data loaded from localStorage, saved at', parsed.timestamp);
+                    console.log('Loaded', accountsData.length, 'accounts and', strategyData.length, 'strategy rows');
+                    
+                    // Restore Account Map data
+                    if (accountsData.length > 0) {
+                        displayAccountData();
+                    }
+                    
+                    // Restore Strategy data
+                    if (strategyData.length > 0) {
+                        displayStrategyData();
+                    }
+                    
+                    return true;
+                }
+            } catch (error) {
+                console.error('Error loading from localStorage:', error);
+            }
+            return false;
+        }
+
+        // Display loaded account data
+        function displayAccountData() {
+            const tbody = document.getElementById('accountTableBody');
+            tbody.innerHTML = '';
+            
+            const sortedData = [...accountsData].sort((a, b) => {
+                const nameA = (a['Name'] || a['Account Name'] || a['AccountName'] || '').toString().toUpperCase();
+                const nameB = (b['Name'] || b['Account Name'] || b['AccountName'] || '').toString().toUpperCase();
+                return nameA.localeCompare(nameB);
+            });
+            
+            sortedData.forEach((account, index) => {
+                const accountName = account['Name'] || account['Account Name'] || account['AccountName'] || '';
+                const city = account['Mail City'] || account['City'] || '';
+                const state = account['Mail State'] || account['State'] || '';
+                const customerId = account['Customer Id'] || account['Customer ID'] || account['CustomerID'] || '';
+                const status = account.status || '';
+                
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${accountName}</td>
+                    <td>${city}</td>
+                    <td>${state}</td>
+                    <td>${customerId}</td>
+                    <td>
+                        <select class="status-select" onchange="updateAccountStatus(${sortedData.indexOf(account)}, this.value)">
+                            <option value="" ${status === '' ? 'selected' : ''}>-</option>
+                            <option value="keep" ${status === 'keep' ? 'selected' : ''}>Keep</option>
+                            <option value="notsure" ${status === 'notsure' ? 'selected' : ''}>Not Sure</option>
+                            <option value="remove" ${status === 'remove' ? 'selected' : ''}>Remove</option>
+                        </select>
+                    </td>
+                `;
+                
+                // Apply status color
+                if (status === 'keep') {
+                    row.classList.add('status-keep');
+                } else if (status === 'notsure') {
+                    row.classList.add('status-notsure');
+                } else if (status === 'remove') {
+                    row.classList.add('status-remove');
+                }
+            });
+            
+            console.log('Displayed', sortedData.length, 'accounts');
+        }
+
+        // Display loaded strategy data
+        function displayStrategyData() {
+            const tbody = document.getElementById('strategyTableBody');
+            tbody.innerHTML = '';
+            
+            strategyData.forEach((data, index) => {
+                addStrategyRow(data, index);
+            });
+            
+            updateTotals();
+            checkAccountMatches();
+            
+            console.log('Displayed', strategyData.length, 'strategy rows');
+        }
+
+        // Clear all data
+        function clearAllData() {
+            if (confirm('Are you sure you want to clear ALL data? This cannot be undone.')) {
+                localStorage.removeItem('salesPipelineData');
+                accountsData = [];
+                strategyData = [];
+                document.getElementById('accountTableBody').innerHTML = '';
+                document.getElementById('strategyTableBody').innerHTML = '';
+                updateTotals();
+                alert('All data cleared.');
+            }
+        }
 
         // Initialize map
         function initMap() {
@@ -613,6 +734,9 @@
             
             // Check for account mismatches
             checkAccountMatches();
+            
+            // Save to localStorage
+            saveToLocalStorage();
         }
 
         // Import strategy data
@@ -808,6 +932,9 @@
             
             updateTotals();
             checkAccountMatches();
+            
+            // Save to localStorage
+            saveToLocalStorage();
         }
 
         // Format currency
@@ -837,6 +964,9 @@
             if (accountsData[index]) {
                 accountsData[index].status = status;
             }
+            
+            // Save to localStorage
+            saveToLocalStorage();
         }
         
         // Update product value and recalculate target
@@ -871,6 +1001,9 @@
                     input.classList.remove('filled');
                 }
             }
+            
+            // Save to localStorage
+            saveToLocalStorage();
         }
         
         // Handle blur on dollar input fields to reformat
@@ -1043,12 +1176,14 @@
             strategyData[index][field] = value;
             updateTotals();
             checkAccountMatch(index);
+            saveToLocalStorage();
         }
 
         // Toggle reviewed status
         function toggleReviewed(index) {
             strategyData[index].reviewed = !strategyData[index].reviewed;
             checkAccountMatch(index);
+            saveToLocalStorage();
         }
 
         // Check if account exists in account map
@@ -1222,6 +1357,14 @@
         // Initialize on page load
         window.onload = function() {
             initMap();
+            
+            // Load saved data from localStorage
+            const dataLoaded = loadFromLocalStorage();
+            if (dataLoaded) {
+                console.log('Previous session data loaded successfully');
+            } else {
+                console.log('No previous session data found');
+            }
         };
     </script>
 </body>
