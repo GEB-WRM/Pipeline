@@ -466,7 +466,7 @@
                     <td>${state}</td>
                     <td>${customerId}</td>
                     <td>
-                        <select class="status-select" onchange="updateAccountStatus(${sortedData.indexOf(account)}, this.value)">
+                        <select class="status-select" onchange="updateAccountStatus('${accountName.replace(/'/g, "\\'")}', this.value); updateRowColor(this);">
                             <option value="" ${status === '' ? 'selected' : ''}>-</option>
                             <option value="keep" ${status === 'keep' ? 'selected' : ''}>Keep</option>
                             <option value="notsure" ${status === 'notsure' ? 'selected' : ''}>Not Sure</option>
@@ -671,13 +671,14 @@
             console.log(`Processing ${sortedData.length} accounts`);
             
             // Process each account
-            sortedData.forEach(account => {
+            sortedData.forEach((account, index) => {
                 const accountName = account['Name'] || account['Account Name'] || account['AccountName'] || '';
                 const city = account['Mail City'] || account['City'] || '';
                 const state = account['Mail State'] || account['State'] || '';
                 const customerId = account['Customer Id'] || account['Customer ID'] || account['CustomerID'] || '';
                 const lat = parseFloat(account['Latitude'] || account['Lat'] || 0);
                 const lng = parseFloat(account['Longitude'] || account['Lng'] || account['Long'] || 0);
+                const status = account.status || '';
                 
                 // Add to table
                 const row = tbody.insertRow();
@@ -687,14 +688,23 @@
                     <td>${state}</td>
                     <td>${customerId}</td>
                     <td>
-                        <select class="status-select" onchange="updateAccountStatus(${sortedData.indexOf(account)}, this.value)">
-                            <option value="">-</option>
-                            <option value="keep">Keep</option>
-                            <option value="notsure">Not Sure</option>
-                            <option value="remove">Remove</option>
+                        <select class="status-select" onchange="updateAccountStatus('${accountName.replace(/'/g, "\\'")}', this.value); updateRowColor(this);">
+                            <option value="" ${status === '' ? 'selected' : ''}>-</option>
+                            <option value="keep" ${status === 'keep' ? 'selected' : ''}>Keep</option>
+                            <option value="notsure" ${status === 'notsure' ? 'selected' : ''}>Not Sure</option>
+                            <option value="remove" ${status === 'remove' ? 'selected' : ''}>Remove</option>
                         </select>
                     </td>
                 `;
+                
+                // Apply status color if exists
+                if (status === 'keep') {
+                    row.classList.add('status-keep');
+                } else if (status === 'notsure') {
+                    row.classList.add('status-notsure');
+                } else if (status === 'remove') {
+                    row.classList.add('status-remove');
+                }
                 
                 // Add to geocoding queue or use existing coordinates
                 if (lat && lng && lat !== 0 && lng !== 0) {
@@ -943,10 +953,10 @@
             return '$' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
         
-        // Update account status
-        function updateAccountStatus(index, status) {
-            const tbody = document.getElementById('accountTableBody');
-            const row = tbody.rows[index];
+        // Update row color based on status
+        function updateRowColor(selectElement) {
+            const row = selectElement.closest('tr');
+            const status = selectElement.value;
             
             // Remove all status classes
             row.classList.remove('status-keep', 'status-notsure', 'status-remove');
@@ -959,10 +969,19 @@
             } else if (status === 'remove') {
                 row.classList.add('status-remove');
             }
+        }
+
+        // Update account status
+        function updateAccountStatus(accountName, status) {
+            // Find the account in accountsData by name
+            const account = accountsData.find(a => {
+                const name = (a['Name'] || a['Account Name'] || a['AccountName'] || '').toString();
+                return name === accountName;
+            });
             
-            // Store status in account data
-            if (accountsData[index]) {
-                accountsData[index].status = status;
+            if (account) {
+                account.status = status;
+                console.log('Updated status for', accountName, 'to', status);
             }
             
             // Save to localStorage
