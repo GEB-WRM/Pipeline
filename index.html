@@ -446,6 +446,10 @@
             const tbody = document.getElementById('accountTableBody');
             tbody.innerHTML = '';
             
+            // Clear existing markers
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+            
             const sortedData = [...accountsData].sort((a, b) => {
                 const nameA = (a['Name'] || a['Account Name'] || a['AccountName'] || '').toString().toUpperCase();
                 const nameB = (b['Name'] || b['Account Name'] || b['AccountName'] || '').toString().toUpperCase();
@@ -458,6 +462,8 @@
                 const state = account['Mail State'] || account['State'] || '';
                 const customerId = account['Customer Id'] || account['Customer ID'] || account['CustomerID'] || '';
                 const status = account.status || '';
+                const lat = parseFloat(account['Latitude'] || account['Lat'] || 0);
+                const lng = parseFloat(account['Longitude'] || account['Lng'] || account['Long'] || 0);
                 
                 const row = tbody.insertRow();
                 row.innerHTML = `
@@ -483,9 +489,31 @@
                 } else if (status === 'remove') {
                     row.classList.add('status-remove');
                 }
+                
+                // Add marker to map if coordinates exist
+                if (lat && lng && lat !== 0 && lng !== 0) {
+                    const marker = L.marker([lat, lng]).addTo(map);
+                    marker.bindPopup(`
+                        <div class="popup-content">
+                            <h4>${accountName}</h4>
+                            <p><strong>City:</strong> ${city}</p>
+                            <p><strong>State:</strong> ${state}</p>
+                            <p><strong>Customer ID:</strong> ${customerId}</p>
+                        </div>
+                    `);
+                    markers.push(marker);
+                }
             });
             
-            console.log('Displayed', sortedData.length, 'accounts');
+            // Fit map to markers if any exist
+            if (markers.length > 0) {
+                setTimeout(() => {
+                    const group = new L.featureGroup(markers);
+                    map.fitBounds(group.getBounds().pad(0.1));
+                }, 100);
+            }
+            
+            console.log('Displayed', sortedData.length, 'accounts with', markers.length, 'map markers');
         }
 
         // Display loaded strategy data
@@ -557,6 +585,17 @@
                     
                     console.log(`✓ Geocoded ${accountName}: ${lat}, ${lng}`);
                     
+                    // Save coordinates back to accountsData
+                    const account = accountsData.find(a => {
+                        const name = (a['Name'] || a['Account Name'] || a['AccountName'] || '').toString();
+                        return name === accountName;
+                    });
+                    
+                    if (account) {
+                        account.Latitude = lat;
+                        account.Longitude = lng;
+                    }
+                    
                     const marker = L.marker([lat, lng]).addTo(map);
                     marker.bindPopup(`
                         <div class="popup-content">
@@ -600,6 +639,10 @@
                     map.fitBounds(group.getBounds().pad(0.1));
                 }, 500);
             }
+            
+            // Save coordinates to localStorage after geocoding completes
+            console.log('Geocoding complete, saving coordinates...');
+            saveToLocalStorage();
         }
 
         // Tab switching
